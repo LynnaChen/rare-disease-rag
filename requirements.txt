@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+chromadb
+torch
+onnxruntime-gpu
+llama-index
+llama-index-vector-stores-chroma
+llama-index-llms-openai-like
+llama-index-embeddings-huggingface
+llama-index-readers-docling
+llama-index-retrievers-bm25
+docling
