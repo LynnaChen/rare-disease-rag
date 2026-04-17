@@ -1,41 +1,39 @@
 import os
 from llama_index.core import Settings
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-# 💡 改用 OpenAI 兼容接口，因为 vLLM 模拟了 OpenAI 接口
 from llama_index.llms.openai_like import OpenAILike
 
 # ==========================================
-# 路径配置
+# Path configuration
 # ==========================================
-#vllm 路径
-# 你的 vLLM 服务器地址（如果是同一台机器，用 localhost）
+# vLLM endpoint
+# Your vLLM server address (use localhost if on the same machine)
 VLLM_API_BASE = "http://localhost:8000/v1"
-# 必须与你启动 vLLM 时 --served-model-name 指定的名字一致
+# Must match the name passed to vLLM via --served-model-name
 VLLM_MODEL_NAME = "my-local-model"
 
-# ChromaDB 数据库路径
+# ChromaDB persistence path
 DB_PATH = "./chroma_db_med"
 COLLECTION_NAME = "med_rare_diseases"
 
-# PDF 输入目录
-INPUT_DIR = "/fs/scratch/users/chenla/RareDisease_rag/nur pdf"
+# PDF input directory
+INPUT_DIR = "./data/pdfs"
 
-# 模型缓存目录
+# Model cache directory
 MODEL_CACHE_DIR = "./model_cache"
 
 # ==========================================
-# 模型配置
+# Model configuration
 # ==========================================
-# 本地 LLM 模型路径 (可以是 HuggingFace ID 或本地绝对路径)
-# 推荐: "Qwen/Qwen2-7B-Instruct" 或 "meta-llama/Meta-Llama-3-8B-Instruct"
+# Local LLM model path (can be a HuggingFace model ID or an absolute local path)
+# Recommended: "Qwen/Qwen2-7B-Instruct" or "meta-llama/Meta-Llama-3-8B-Instruct"
 LLM_MODEL_PATH = "Qwen/Qwen2-7B-Instruct"
 
-# Embedding 模型路径 (必须与 Indexer 一致)
-# 👇 改成这个长路径
-EMBED_MODEL_PATH = "/fs/scratch/users/chenla/RareDisease_rag/model_cache/models--BAAI--bge-m3/snapshots/5617a9f61b028005a4858fdac845db406aefb181"
+# Embedding model path (must match the one used by the indexer)
+EMBED_MODEL_PATH = "BAAI/bge-m3"
 
 # ==========================================
-# LLM 生成配置
+# LLM generation configuration
 # ==========================================
 LLM_CONTEXT_WINDOW = 32000
 LLM_MAX_NEW_TOKENS = 1024
@@ -44,7 +42,7 @@ LLM_DO_SAMPLE = True
 
 
 # ==========================================
-# 模型加载函数（原 models.py / models2.py 逻辑合并到这里）
+# Model loader helpers (merged from the original models.py / models2.py)
 # ==========================================
 
 _llm = None
@@ -53,7 +51,7 @@ _embed_model = None
 
 def get_embed_model(device: str = "cuda"):
     """
-    加载并缓存 Embedding 模型（只初始化一次），同时写入 Settings.embed_model。
+    Load and cache the embedding model (initialize only once), and set Settings.embed_model.
     """
     global _embed_model
     if _embed_model is None:
@@ -70,30 +68,30 @@ def get_embed_model(device: str = "cuda"):
 
 def get_generation_model():
     """
-    加载并缓存本地 LLM（只初始化一次），同时写入 Settings.llm。
+    Load and cache the LLM client (initialize only once), and set Settings.llm.
     """
     global _llm
     if _llm is None:
-        print("🚀 正在通过 LlamaIndex 加载本地 LLM ...")
+        print("🚀 Initializing LLM via LlamaIndex ...")
         _llm = OpenAILike(
             model=VLLM_MODEL_NAME,
             api_base=VLLM_API_BASE,
-            api_key="fake_key", # vLLM 本地运行不需要真实 Key，但这里不能为空
+            api_key="fake_key",  # vLLM does not require a real key, but this cannot be empty
             is_chat_model=True,
             context_window=32000,
             timeout=60.0
         )
         Settings.llm = _llm
-        print("✅ 成功连接至 vLLM 推理引擎。")
+        print("✅ Successfully connected to the vLLM inference engine.")
     return _llm
 
 # ==========================================
 
 
 # ==========================================
-# Prompt 模板
+# Prompt templates
 # ==========================================
-# 意图识别 Prompt
+# Intent extraction prompt
 INTENT_EXTRACTION_PROMPT = """You are a medical retrieval assistant. Analyze the user's input and extract the core retrieval conditions.
 User Input: "{query}"
 
@@ -103,35 +101,35 @@ Please output JSON format, do not include Markdown tags, and include the followi
 - is_social: (boolean) Whether the user is primarily looking for a support group/social connection
 """
 
-# 生成回答的系统提示词
+# System prompt for answer generation
 GENERATION_SYSTEM_TEMPLATE = """You are a professional medical assistant. Answer the user's questions based on the following medical guideline content.
 If the guidelines do not contain relevant information, state so clearly.
 
-【Medical Guideline Content】:
+Medical Guideline Content:
 {context}
 
-【Answer Requirements】:
+Answer Requirements:
 - The answer should be in English
 - Answer accurately based on the guideline content
 - If there is no relevant information in the guidelines, say "No relevant information found in the guidelines"
 - Answers should be professional, accurate, and easy to understand
 - You may refer to prior conversation history to provide more coherent answers
-- At the end of your answer, you must list all reference sources (format: [Source: 《filename》, Page X])
+- At the end of your answer, you must list all reference sources (format: [Source: \"filename\", Page X])
 """
 
-# 生成回答的用户提示词
+# User prompt for answer generation
 GENERATION_USER_TEMPLATE = "{question}"
 
-# 社交需求回复
-SOCIAL_RESPONSE = "I detected that you want to find a support group. Please scan the QR code below to follow '豌豆Sir'公众号 to get community information..."
+# Response for social/support-group intent
+SOCIAL_RESPONSE = "I detected that you want to find a support group. Please scan the QR code below and follow the 'WandouSir' public account to get community information..."
 
 # ==========================================
-# 疾病名关键词字典（用于快速匹配）
+# Disease keyword dictionary (for quick matching)
 # ==========================================
-# 常见罕见病名称列表（可以从数据库加载，这里先硬编码示例）
-# 实际使用时可以从已索引的文件名中动态加载
+# A list of common rare disease names (can be loaded from the database; hard-coded here as a placeholder)
+# In practice, this can be dynamically derived from indexed file names
 
 
-# 拒答话术
+# Rejection response
 REJECTION_RESPONSE = "Sorry, I did not find any relevant specific information in the existing authoritative medical guideline database. For safety, please consult a professional doctor."
 

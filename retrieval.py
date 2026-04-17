@@ -32,7 +32,7 @@ def load_retrievers():
     if _vector_retriever is not None and _bm25_retriever is not None:
         return _vector_retriever, _bm25_retriever
 
-    print(f"🔄 初始化检索系统...")
+    print("🔄 Initializing retrieval system...")
     Settings.embed_model = get_embed_model()
 
     db = chromadb.PersistentClient(path=DB_PATH)
@@ -46,10 +46,10 @@ def load_retrievers():
 
     _index = load_index_from_storage(_storage_context)
     
-    # 初始化向量检索器 (Top 20 海选子块)
+    # Initialize vector retriever (top-20 candidate child chunks)
     _vector_retriever = _index.as_retriever(similarity_top_k=20)
 
-    # 初始化 BM25 检索器
+    # Initialize BM25 retriever
     print("🔨 Building BM25 Index...")
     nodes = list(_index.docstore.docs.values())
     _bm25_retriever = BM25Retriever.from_defaults(
@@ -57,12 +57,12 @@ def load_retrievers():
         similarity_top_k=20 
     )
     
-    print("✅ 双路检索器加载完成。")
+    print("✅ Dual retrievers are ready.")
     return _vector_retriever, _bm25_retriever
 
 
 # ==========================================
-# 2. RRF Fusion Algorithm (保持标准实现)
+# 2. RRF Fusion Algorithm (standard implementation)
 # ==========================================
 def reciprocal_rank_fusion(results_list: List[List[NodeWithScore]], k: int = 60) -> List[NodeWithScore]:
     fused_scores = defaultdict(float)
@@ -80,68 +80,68 @@ def reciprocal_rank_fusion(results_list: List[List[NodeWithScore]], k: int = 60)
 
 
 # ==========================================
-# 3. 进阶检索逻辑：父节点积分聚合排序
+# 3. Advanced retrieval: parent-score aggregation and reranking
 # ==========================================
 
 def retrieve(query: str, top_k: int = 3):
     """
-    1. 双路检索子块 (Child)
-    2. RRF 融合打分 (Child)
-    3. 父节点 (Parent) 继承并累加子块分数
-    4. 对父节点进行总分重排，取 Top K
+    1. Retrieve child chunks via two retrievers (Child)
+    2. Fuse child results with RRF scoring (Child)
+    3. Aggregate child scores onto their corresponding parents (Parent)
+    4. Rerank parents by aggregated score and return Top-K
     """
     vector_retriever, bm25_retriever = load_retrievers()
     global _index
 
     print(f"\n🔍 Query: {query}")
     
-    # --- Step 1: 检索子块 ---
+    # --- Step 1: retrieve child chunks ---
     vector_nodes = vector_retriever.retrieve(query)
     bm25_nodes = bm25_retriever.retrieve(query)
     
-    # --- Step 2: RRF 融合 (针对子块) ---
+    # --- Step 2: RRF fusion (on child chunks) ---
     fused_child_nodes = reciprocal_rank_fusion([vector_nodes, bm25_nodes])
     
     if not fused_child_nodes:
         return []
 
-    # --- Step 3: 父节点积分累加 ---
-    # 我们拿前 20 个子块作为“评分员”
+    # --- Step 3: aggregate scores onto parents ---
+    # Use the top-20 fused child chunks as "voters"
     parent_scores = defaultdict(float)
     parent_node_map = {}
 
     for child_ws in fused_child_nodes[:20]:
         child_node = child_ws.node
-        child_score = child_ws.score # 子块的 RRF 分数
+        child_score = child_ws.score  # RRF score for the child chunk
 
-        # 找到父节点 ID (从 metadata 或属性中提取)
+        # Resolve parent ID (from attribute or metadata)
         parent_id = getattr(child_node, 'index_id', child_node.metadata.get('index_id'))
         
         if not parent_id:
             continue
 
-        # 核心：将子块分数累加给父节点
+        # Core: accumulate child score into its parent
         parent_scores[parent_id] += child_score
 
-        # 缓存父节点对象，避免重复查询库
+        # Cache parent node objects to avoid repeated docstore lookups
         if parent_id not in parent_node_map:
             try:
                 parent_node_map[parent_id] = _index.docstore.get_node(parent_id)
             except Exception:
                 continue
 
-    # --- Step 4: 根据累加后的总分重新对父节点排序 ---
-    # 这一步解决了“去重”和“加权”两个问题
+    # --- Step 4: rerank parents by aggregated score ---
+    # This naturally de-duplicates and rewards parents hit by multiple children
     sorted_parent_ids = sorted(parent_scores.items(), key=lambda x: x[1], reverse=True)
 
-    # --- Step 5: 取最终 Top K ---
+    # --- Step 5: return final Top-K parents ---
     final_parent_nodes = []
     for pid, score in sorted_parent_ids[:top_k]:
         p_node = parent_node_map[pid]
-        # 把文件名打出来看看，方便 Debug
+        # Print source name for debugging
         source_name = p_node.metadata.get('disease_name', 'Unknown')
-        print(f"  -> 🔗 父节点积分排名: {score:.4f} (Source: {source_name})")
+        print(f"  -> 🔗 Parent aggregated score: {score:.4f} (Source: {source_name})")
         final_parent_nodes.append(p_node)
 
-    print(f"📦 最终返回 {len(final_parent_nodes)} 个综合权重最高的父节点文档。")
+    print(f"📦 Returning {len(final_parent_nodes)} parent documents with the highest aggregated scores.")
     return final_parent_nodes

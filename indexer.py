@@ -1,5 +1,5 @@
 """
-索引器：离线脚本，只负责建库
+Indexer: offline script for building the index only.
 """
 from config import DB_PATH, COLLECTION_NAME, INPUT_DIR, MODEL_CACHE_DIR, EMBED_MODEL_PATH
 import os
@@ -92,8 +92,8 @@ print(f"📂 Found {len(all_files)} PDF files in total.")
 # ==========================================
 def get_file_metadata(file_path: str) -> dict:
     """
-    从文件路径提取元数据
-    例如: "SMA.pdf" -> {"disease_name": "SMA", "file_name": "SMA.pdf"}
+    Extract metadata from a file path.
+    Example: "SMA.pdf" -> {"disease_name": "SMA", "file_name": "SMA.pdf"}
     """
     file_name = os.path.basename(file_path)
     
@@ -131,7 +131,7 @@ for i in range(0, len(all_files), 50):
         # -----------------------------------
         print("   - [2/4] Building Semantic Parent-Child Nodes...")
 
-        nodes_to_index = []      # child nodes（embedding）
+        nodes_to_index = []      # child nodes (embedded)
         nodes_to_docstore = []  # parent nodes 
 
         # 1. parent nodes
@@ -173,18 +173,18 @@ for i in range(0, len(all_files), 50):
             # 4. parent nodes only in docstore
             nodes_to_docstore.append(p_node)
 
-        print(f"     > Created {len(nodes_to_index)} child nodes (向量化)")
-        print(f"     > Created {len(nodes_to_docstore)} parent nodes (仅docstore)")
+        print(f"     > Created {len(nodes_to_index)} child nodes (embedded)")
+        print(f"     > Created {len(nodes_to_docstore)} parent nodes (docstore only)")
 
         # -----------------------------------
         # C. Embedding & Indexing
         # -----------------------------------
         print("   - [3/4] Embedding & Inserting into ChromaDB...")
         
-        # only save child nodes to vector store（will generate embedding）
+        # Only save child nodes to the vector store (embeddings will be generated).
         if index is None:
             index = VectorStoreIndex(
-                nodes_to_index,  # 只包含子节点
+                nodes_to_index,  # child nodes only
                 storage_context=storage_context,
                 show_progress=True
             )
@@ -214,7 +214,7 @@ for i in range(0, len(all_files), 50):
         continue
 
 # ==========================================
-# 完成
+# Done
 # ==========================================
 storage_context.persist(persist_dir=DB_PATH) 
 print(f"📂 mapping relationship saved to: {DB_PATH}")
