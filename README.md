@@ -1,80 +1,117 @@
-# RareDisease RAG (English)
+# Rare Disease RAG System
 
-A lightweight Retrieval-Augmented Generation (RAG) project for rare disease Q&A based on medical guideline PDFs.
+This project is a Retrieval-Augmented Generation (RAG) based question-answering system for the rare disease domain. It combines a local document knowledge base (e.g. medical PDF literature), a vector retrieval pipeline built on ChromaDB, and **Qwen2-7B-Instruct** served through **vLLM** for high-performance inference.
 
-The pipeline:
-1. Read PDF files
-2. Build parent/child chunks
-3. Store embeddings in ChromaDB
-4. Retrieve relevant content
-5. Generate answers with an LLM (via vLLM-compatible API)
+The system is fully containerized with Docker Compose and is designed for reproducible deployment, local development, and further extension.
 
-## Project Structure
+---
+
+## System architecture and requirements
+
+- **Core frameworks**: Python 3.12, FastAPI / Streamlit, ChromaDB
+- **LLM engine**: vLLM
+- **Default model**: `Qwen/Qwen2-7B-Instruct`
+
+### Hardware / environment
+
+- **OS**: Linux
+- **GPU**: At least 1 NVIDIA GPU
+- **Recommended VRAM**: 24GB or more (e.g. RTX 3090, RTX 4090, RTX 6000, A6000)
+- **Dependencies**: NVIDIA driver, Docker, Docker Compose
+
+> **Note:** The first startup may trigger a large model download from Hugging Face. Use a stable internet connection and ensure sufficient disk space.
+
+---
+
+## Project structure
+
+The project follows a flat service-oriented layout that separates deployment configuration from core RAG logic:
 
 ```text
 RareDisease_rag_eng/
-├── config.py          # paths, model config, prompts
-├── indexer.py         # build vector index from PDFs
-├── retrieval.py       # hybrid retrieval + fusion
-├── generation.py      # context building + answer generation
-├── main.py            # CLI chat entry
-├── eva.py             # optional evaluation script
-├── groundtruth.json   # sample eval data
-├── nur pdf/           # input PDF folder
-└── chroma_db_med/     # generated ChromaDB data
+├── .env.example             # Environment variable template
+├── docker-compose.prod.yml  # Optional production config (pulls pre-built image)
+├── docker-compose.yml       # Default development config (builds from local source)
+├── Dockerfile               # Docker image definition
+├── requirements.txt         # Python dependencies
+├── main.py                  # Main application entry point
+├── config.py                # Global configuration
+├── generation.py            # RAG generation module
+├── indexer.py               # Document parsing and vector indexing
+├── retrieval.py             # Retrieval and similarity search
+├── .gitignore               # Git ignore rules
+└── .dockerignore            # Docker build ignore rules
 ```
 
-## Requirements
+---
 
-- Python 3.10+
-- Main dependencies in `requirements.txt`
-- A running vLLM/OpenAI-compatible endpoint for generation
+## Deployment
 
-Install dependencies:
+### Option 1: Build from source (recommended)
+
+This is the recommended way to run the project for development, evaluation, or code review. The running container reflects your current local source code.
+
+#### 1. Prepare environment variables
+
+Clone the repository, move into the project root, and create the environment file:
 
 ```bash
-pip install -r requirements.txt
+cp .env.example .env
 ```
 
-## Configuration
+Edit `.env` if needed to adjust ports, model settings, or other configuration values.
 
-Edit `config.py` before running:
-
-- `INPUT_DIR`: folder containing PDF files
-- `DB_PATH`: ChromaDB storage path
-- `COLLECTION_NAME`: Chroma collection name
-- `EMBED_MODEL_PATH`: embedding model path or HF model id
-- `VLLM_API_BASE`: vLLM API base URL
-- `VLLM_MODEL_NAME`: served model name
-
-## How to Run
-
-### 1) Build the index (required first step)
+#### 2. Build and start the services
 
 ```bash
-python indexer.py
+docker-compose up -d --build
 ```
 
-This reads PDFs from `INPUT_DIR` and writes vector data to `DB_PATH`.
+Docker builds the image locally from the `Dockerfile` and starts the required services.
 
-### 2) Run interactive CLI
+#### 3. Check startup logs
+
+To monitor the LLM startup process:
 
 ```bash
-python main.py
+docker-compose logs -f vllm
 ```
 
+On the first launch, vLLM may download model weights from Hugging Face and cache them under `./model_cache`. Duration depends on network speed.
 
-## Docker Notes
+Once the logs show that the server is running, the system is ready.
 
-If you run with Docker, make sure:
-- Your local PDF directory is mounted into the container (for example to `/data/input`)
-- `INPUT_DIR` in runtime environment points to that mounted path
-- `DB_PATH` points to a mounted persistent directory (for example `/data/chroma_db_med`)
+#### 4. Rebuild after code changes
 
-You still need to run indexing at least once before query service can work.
+If you modify the source code and want the container to reflect the latest changes:
 
-## Quick Troubleshooting
+```bash
+docker-compose up -d --build
+```
 
-- No retrieval results: check if `indexer.py` has been run successfully.
-- Import warnings in IDE: usually environment/interpreter mismatch.
-- Slow first run: model download/cache may take time.
+### Option 2: Pre-built image (optional)
+
+If a pre-built image is available on Docker Hub, you can start the system without building locally.
+
+#### 1. Prepare environment variables
+
+```bash
+cp .env.example .env
+```
+
+#### 2. Start services with the production compose file
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+This path is for quick runtime setup; it depends on the availability and maintenance of the published image.
+
+#### 3. Check startup logs
+
+```bash
+docker-compose -f docker-compose.prod.yml logs -f vllm
+```
+
+As with the source-build setup, the first run may still download model weights into `./model_cache`.
+
