@@ -6,19 +6,6 @@ The system is fully containerized with Docker Compose and is designed for reprod
 
 ---
 
-## System architecture and requirements
-
-- **Core frameworks**: Python 3.12, FastAPI / Streamlit, ChromaDB
-- **LLM engine**: vLLM
-- **Default model**: `Qwen/Qwen2-7B-Instruct`
-
-### Hardware / environment
-
-- **OS**: Linux
-- **GPU**: At least 1 NVIDIA GPU
-- **Recommended VRAM**: 24GB or more (e.g. RTX 3090, RTX 4090, RTX 6000, A6000)
-- **Dependencies**: NVIDIA driver, Docker, Docker Compose
-
 > **Note:** The first startup may trigger a large model download from Hugging Face. Use a stable internet connection and ensure sufficient disk space.
 
 ---
