@@ -78,7 +78,7 @@ docker-compose up -d --build
 
 ### Option 2: Pre-built image (optional)
 
-If a pre-built image is available on Docker Hub, you can start the system without building locally.
+a pre-built image is available on Docker Hub, you can start the system without building locally.
 
 #### 1. Prepare environment variables
 
