@@ -1,6 +1,6 @@
 # Rare Disease RAG Pipline
 
-This project is a Retrieval-Augmented Generation (RAG) based question-answering system for the rare disease domain. It combines a local document knowledge base (e.g. medical PDF literature), a vector retrieval pipeline built on ChromaDB, and **Qwen2-7B-Instruct** served through **vLLM** for high-performance inference.
+This project is a RAG pipeline for the rare disease domain. It combines a local document knowledge base (e.g. medical PDF literature), a vector retrieval pipeline built on ChromaDB, and **Qwen2-7B-Instruct** served through **vLLM** for high-performance inference.
 
 The system is fully containerized with Docker Compose and is designed for reproducible deployment, local development, and further extension.
 
