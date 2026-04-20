@@ -92,7 +92,7 @@ cp .env.example .env
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
-This path is for quick runtime setup; it depends on the availability and maintenance of the published image.
+This path is for quick runtime setup
 
 #### 3. Check startup logs
 
